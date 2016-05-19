@@ -66,6 +66,9 @@
         {:name (.getName proto) :value (handle-value-type proto)}
         (= "mesos.Resource" (.. proto getDescriptorForType getFullName))
         {:name (.getName proto) :value (handle-value-type proto)}
+        ;; Hack for Labels
+        (= "mesos.Labels" (.. proto getDescriptorForType getFullName))
+        (into {} (map (fn [v] [(.getKey v) (.getValue v)]) (.getValue (first fields))))
         ;; Hack for nice environment variable handling
         (= "mesos.Environment" (.. proto getDescriptorForType getFullName))
         (into {} (map (fn [v] [(.getName v) (.getValue v)]) (.getValue (first fields))))
@@ -82,6 +85,7 @@
                                         (and (.isRepeated desc)
                                              (#{"mesos.Resource"
                                                 "mesos.Attribute"
+                                                "mesos.Label"
                                                 "mesos.Environment.Variable"}
                                                (.. desc getMessageType getFullName)))
                                         (->> v
@@ -136,17 +140,30 @@
       ;; So this clause just pushes a k/v env var map into its subfield, :variables
       (and (= (.getFullName desc) "mesos.Environment") (= ::no (get m :variables ::no)))
       (recursive-build builder {:variables m})
+      (and (= (.getFullName desc) "mesos.Labels") (= ::no (get m :labels ::no)))
+      (recursive-build builder {:labels m})
       :else
       (reduce (fn [builder field]
                 (let [name (clojurify-name (.getName field))
                       value (get m (keyword name) ::missing)
                       message? (= (.getType field) com.google.protobuf.Descriptors$FieldDescriptor$Type/MESSAGE)
                       enum? (= (.getType field) com.google.protobuf.Descriptors$FieldDescriptor$Type/ENUM)
+                      full-name (if message? (.. field getMessageType getFullName))
+
                       ;; Fix ups for simplicity
                       value (cond
-                              ;; Fix up Resources and Attributes and Env Vars
+                              ;; Fix up labels
+                              (= "mesos.Labels" full-name)
+                              (mapv (fn [[k v]]
+                                      {:key (clojure.core/name k)
+                                       :value v})
+                                    (if (= value ::missing) [] value))
+
+                              ;; Fix up Hashlike fields
                               (and message?
-                                   (#{"mesos.Attribute" "mesos.Resource" "mesos.Environment.Variable"} (.. field getMessageType getFullName)))
+                                   (#{"mesos.Attribute"
+                                      "mesos.Resource"
+                                      "mesos.Environment.Variable"} full-name))
                               (mapv (fn [[k v]]
                                       (let [type (cond
                                                    (set? v) :set
