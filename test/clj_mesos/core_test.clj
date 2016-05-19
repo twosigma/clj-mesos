@@ -112,6 +112,8 @@
                                                    :name "cookjob_vagrant_702213fc-4f57-4fcd-9437-d99aea7976be",
                                                    :task-id "702213fc-4f57-4fcd-9437-d99aea7976be",
                                                    :resources {:cpus 1.5, :mem 1000.0}
+                                                   :labels {"boo" "baz"
+                                                            "foo" "bar"}
                                                    :command {:value "echo hello my friend",
                                                              :uris [{:value "http://google.com/index.html"
                                                                      :extract false}]
